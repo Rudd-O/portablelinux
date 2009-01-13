@@ -248,11 +248,16 @@ class PortableLinux(gtk.glade.XML):
 
 		def get_devices():
 			for a in glob.glob("/sys/block/sd*"):
-				if file(a+"/removable").read().startswith("1"): yield a
+				removable = file(a+"/removable").read().startswith("1")
+				mb_blocks = int(file(a+"/size").read()) / 2 / 1024
+				if removable and mb_blocks >= 1000:
+					yield (a,mb_blocks)
 
-		for m in get_devices():
+		for m,mb in get_devices():
 			m = m.replace("/sys/block","/dev")
-			model.append((m,0))
+			model.append((m,mb))
+		if len(model) == 0:
+			model.append(("(no removable device large enough connected)",-1))
 
 		self.update_readiness()
 		self.get("setup_options").show()
@@ -281,7 +286,13 @@ class PortableLinux(gtk.glade.XML):
 
 		# FIXME verify the USB stick has enough disk space
 
-		self.valid_device = True
+		num = self.get("device").get_active()
+		device,size = self.get("device").get_model()[num]
+		if size != -1:
+			self.get("persistent_size").set_range(32,size-700-16)
+			self.valid_device = True
+		else:
+			self.valid_device = False
 
 		self.update_readiness()
 
