@@ -1,0 +1,18 @@
+= Portable Linux - the bootable Linux creator =
+
+Portable Linux is a tool that lets you create bootable USB and removable drives using popular Live CDs based on Casper.  Supported distributions at the moment include all the Ubuntu variants.
+
+It is free software distributed under the GPL version 3, and it uses the powerful Parted partitioning software.
+
+You can find the latest news and versions of this software at:
+  http://rudd-o.com/new-projects/portablelinux
+
+== Help! ==
+
+Sure, Portable Linux needs all the help you can muster!  Its Web site is completely open for contribution.
+
+ * If you find a bug, please file it using the bug tracker.
+ * If you have patches to contribute, please file a bug too (since we're using Git, chances are we'll be able to pull and push code right from the start).
+ * This project needs a logo and an icon.  If you're an artist, you're welcome to help!
+ * If you have knowledge of gettext translations, check the code out and translate it.
+ * In fact, if you have any idea that you'd like to share with us, do so as well.  Add your proposal to our Proposals section!

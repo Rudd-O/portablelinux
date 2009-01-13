@@ -1,0 +1,384 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+import os
+import sys
+import gobject
+import pygtk
+pygtk.require("2.0")
+import gtk
+import gtk.glade
+import commands
+import glob
+import tempfile
+import subprocess
+from subprocess import CalledProcessError
+from threading import Thread
+import StringIO
+import time
+import signal
+
+def get_shared_path():
+	testfile = 'portablelinux.glade'
+	sharedirs = [".",os.path.join(os.path.dirname(sys.argv[0]),"../share/portablelinux")]
+	sharepath = None
+	for sharedir in sharedirs:
+		fname = os.path.join(os.path.abspath(sharedir),testfile)
+		if os.path.exists(fname):
+			sharepath = os.path.abspath(sharedir)
+			break
+	
+	if sharepath is None:
+		raise Exception, "Portable Linux shared files " + testfile + " cannot be found in any of " + str(sharedirs) + " default paths"
+	
+	return sharepath
+
+
+# hardware stuff
+class UnsupportedISO(Exception): pass
+
+last_check_call_pid = None
+def collect_check_call(*args,**kwargs):
+	global last_check_call_pid
+
+	io = tempfile.TemporaryFile()
+	kwargs["stdin"] = None
+	kwargs["stdout"] = io
+	kwargs["stderr"] = io
+	p = subprocess.Popen(*args,**kwargs)
+	last_check_call_pid = p.pid
+	ret = p.wait()
+	if ret != 0:
+		e = subprocess.CalledProcessError(ret,args[0])
+		io.seek(0)
+		e.output = io.read().strip()
+		raise e
+
+def sigterm_check_call():
+	global last_check_call_pid
+	try: os.kill(last_check_call_pid,15)
+	except Exception: pass
+
+
+def mountloop(file,mntpnt,fstype=None):
+	cmd = ["mount","-o","loop",file,mntpnt]
+	if fstype: cmd.extend(["-t",fstype])
+	collect_check_call(cmd)
+def mount(file,mntpnt,fstype=None):
+	cmd = ["mount",file,mntpnt]
+	if fstype: cmd.extend(["-t",fstype])
+	collect_check_call(cmd)
+def umount(device): collect_check_call(["umount",device])
+def badblocks(device): collect_check_call(["badblocks","-e","1",device])
+def sync(): collect_check_call(["sync"])
+def mkdosfs(device,verify=True):
+	cmd = ["mkfs.vfat","-F","32"]
+	if verify: cmd.extend(["-c"])
+	cmd.extend(["-n","PORTABLELNX",device])
+	collect_check_call(cmd)
+def installgrub(device,mountpoint): collect_check_call(["grub-install","--no-floppy","--root-directory=%s"%mountpoint,device])
+def mke3fs(device): collect_check_call(["mkfs.ext3","-F",device])
+def dd(infk,of,bs=None,count=None):
+	cmd = ["dd","if=%s"%infk,"of=%s"%of]
+	if bs: cmd.append("bs=%s"%bs)
+	if count: cmd.append("count=%s"%count)
+	collect_check_call(cmd)
+
+class MakePortableLinux(Thread):
+
+	def __init__(self,reporter,isoimage,device,verify,persistent_size):
+		"""reporter is a function that takes one argument, either:
+			the name of a stage, or
+			an exception
+		"""
+		Thread.__init__(self,name="MakePortableLinux")
+		self.setDaemon(True)
+		self.reporter = reporter
+		self.isoimage = isoimage
+		self.device = device
+		self.verify = verify
+		self.persistent_size = persistent_size
+		self.cancel = False
+		self.error = False
+		self.stage = None
+
+	def abort(self):
+		self.cancel = True
+		sigterm_check_call()
+
+	def run(self):
+		for stage in "umountfs partition badblocks mkfs mountfs installgrub copykernel mkpersistent writeiso mkbootmenu finalize".split():
+			if self.cancel is True: return
+			self.stage = stage
+			self.reporter(stage)
+			func = getattr(self,stage)
+			try: func()
+			except Exception,e:
+				if self.cancel is not True: self.reporter(e)
+				self.error = True
+				self.cleanup()
+				return
+		self.reporter("done")
+
+	def umountfs(self):
+		mounted = []
+		mounted = [ a.split()[0] for a in file("/etc/mtab").readlines() if a.startswith(self.device) ]
+		for mntpnt in mounted: umount(mntpnt)
+		sync()
+
+	def partition(self): # requires parted
+		"parted /dev/sdc [command]"
+		
+	def badblocks(self):
+		if self.verify: badblocks(self.device+"2")
+	
+	def mkfs(self):
+		mkdosfs(self.device+"1",verify=self.verify)
+
+	def mountfs(self):
+		self.dospart = tempfile.mkdtemp()
+		mount(self.device+"1",self.dospart,fstype="vfat")
+
+	def installgrub(self):
+		installgrub(self.device,self.dospart)
+	
+	def copykernel(self):
+		self.isopart = tempfile.mkdtemp()
+		mountloop(self.isoimage,self.isopart,fstype="iso9660")
+		collect_check_call([
+				"cp","-f",
+				"%s/casper/vmlinuz"%self.isopart,"%s/casper/initrd.gz"%self.isopart,
+				"%s/boot"%self.dospart])
+	
+	def mkpersistent(self):
+		dd("/dev/zero","%s/casper-rw"%self.dospart,bs="1M",count=str(self.persistent_size))
+		mke3fs("%s/casper-rw"%self.dospart)
+		
+	def writeiso(self): dd(self.isoimage,self.device+"2")
+	
+	def mkbootmenu(self):
+		seeds = glob.glob(os.path.join(self.isopart,"preseed","*.seed"))
+		if seeds: seed = "file=/preseed/%s "%os.path.basename(seeds[0])
+		else: seed = ""
+		bootmenu = \
+"""
+default         0
+timeout         10
+
+title           Linux (Live)
+root            (hd0,0)
+kernel          /boot/vmlinuz boot=casper %s persistent
+initrd          /boot/initrd.gz
+"""%seed
+		f = file(os.path.join(self.dospart,"boot","grub","grub.conf"),"w")
+		f.write(bootmenu)
+		f.close()
+
+	def finalize(self):
+		umount(self.dospart)
+		umount(self.isopart)
+		os.rmdir(self.dospart)
+		os.rmdir(self.isopart)
+		sync()
+
+	def cleanup(self):
+		try: umount(self.dospart)
+		except Exception: pass
+		try: umount(self.isopart)
+		except Exception: pass
+		try: os.rmdir(self.dospart)
+		except Exception: pass
+		try: os.rmdir(self.isopart)
+		except Exception: pass
+
+
+def validate_iso(iso):
+	mntpnt = tempfile.mkdtemp()
+	try:
+		mountloop(iso,mntpnt,fstype="iso9660")
+		if not os.path.exists(os.path.join(mntpnt,"casper","vmlinuz")): raise UnsupportedISO
+	finally:
+		try: umount(mntpnt)
+		except Exception: pass
+		os.rmdir(mntpnt)
+
+
+class PortableLinux(gtk.glade.XML):
+
+	def get(self,n): return self.get_widget(n)
+
+	def __init__ (self):
+		gtk.glade.XML.__init__(self,os.path.join(get_shared_path(),'portablelinux.glade'))
+		self.signal_autoconnect(self)
+		self.run_setup()
+
+	def gtk_main_quit(*args):
+		gtk.main_quit()
+
+	def run_setup(self):
+
+		self.valid_iso = False
+		self.valid_device = False
+
+		model = gtk.ListStore(str,int)
+		device_list = self.get("device")
+		device_list.set_model(model)
+
+		def get_devices():
+			for a in glob.glob("/sys/block/sd*"):
+				if file(a+"/removable").read().startswith("1"): yield a
+
+		for m in get_devices():
+			m = m.replace("/sys/block","/dev")
+			model.append((m,0))
+
+		self.update_readiness()
+		self.get("setup_options").show()
+		self.get("persistent_size").set_text("256")
+
+		self.get("isoimage").set_filename("/home/rudd-o/download/kubuntu-8.10-desktop-i386.iso")
+		self.get("device").set_active(0)
+		self.valid_iso = True
+
+		self.update_readiness()
+
+	def on_iso_selected(self,*args):
+
+		filename = self.get("isoimage").get_filename()
+		self.valid_iso = False
+		if filename:
+			try:
+				valid = validate_iso(filename)
+				self.valid_iso = True
+			except UnsupportedISO:
+				self.warning_dialog("The image you chose is not a supported ISO image","The image you selected is a CD image, but is not supported.  Only Casper-based Live bootable Linux images like Ubuntu and Knoppix are supported.")
+			except CalledProcessError,e:
+				if e.returncode & 1: self.need_root_privs_dialog()
+				if e.returncode & 32: self.warning_dialog("The file you chose is not an ISO image","The operating system has refused to mount that file because it is not an ISO image.  Verify that you have chosen a file that is a valid ISO image.","Details from the operating system:\n\n%s"%e.output)
+				else: raise
+
+		self.update_readiness()
+
+	def on_device_selected(self,*args):
+
+		# FIXME verify the USB stick has enough disk space
+
+		self.valid_device = True
+
+		self.update_readiness()
+
+	def update_readiness(self):
+		self.get("ok").set_sensitive(self.valid_iso and self.valid_device)
+
+	def install_portable_linux(self,*args):
+		num = self.get("device").get_active()
+		device = self.get("device").get_model()[num][0]
+		filename = self.get("isoimage").get_filename()
+		verify = self.get("verify").get_active()
+		persistent_size = int(self.get("persistent_size").get_text())
+
+		for a in [self.get("arrow_badblocks"),self.get("label_badblocks")]:
+			a.set_sensitive(verify)
+		self.get("setup_options").set_sensitive(False)
+		self.get("setup_progress").set_transient_for(self.get("setup_options"))
+		self.get("cancel_install").show()
+		self.get("dismiss_progress").hide()
+		self.get("setup_progress").show()
+
+		def idle_reporter(arg):
+			gobject.idle_add(self.handle_progress_report,arg)
+
+		self.process = MakePortableLinux(idle_reporter,filename,device,verify,persistent_size)
+		self.process.start()
+
+		def show_activity(*args):
+			if not hasattr(self,"process") or \
+				not self.process.isAlive() or \
+				self.process.error:
+					return False
+			self.get("throbber").pulse()
+			return True
+		gobject.timeout_add(300,show_activity)
+
+
+	def handle_progress_report(self,arg):
+		def hidearrows():
+			table = self.get("arrow_container")
+			def h(w,*args):
+				if w.get_name().startswith("arrow_"): w.hide()
+			table.foreach(h)
+
+		if arg == "done":
+			hidearrows()
+			self.get("progress_primary").set_markup("<b><big><big>Portable Linux has been installed</big></big></b>")
+			self.get("progress_secondary").set_markup("<big>It's safe to remove your USB drive now.  Test it by plugging it into a computer, rebooting it, and selecting USB boot from the BIOS setup or BIOS boot menu.</big>")
+			self.get("cancel_install").hide()
+			self.get("dismiss_progress").show()
+			self.setup_progress_response_cb()
+			self.info_dialog("Portable Linux installation is complete","The installation process completed successfully; it is now safe to remove your USB drive from your computer.  Your USB drive should now be bootable in any computer.")
+			return
+		
+		if type(arg) is str:
+			# show the right arrow
+			hidearrows()
+			self.get("arrow_%s"%arg).show()
+			return
+
+		e = arg
+		if hasattr(e,"output") and e.output: ternary = "Details from the operating system:\n\n%s"%e.output
+		else: ternary = str(e)
+		if self.process.stage == "umountfs":
+			self.error_dialog("Cannot access your USB drive exclusively","One of the partitions in the USB drive cannot be unmounted.  Close any applications that have files open on your USB drive, then try again.",ternary)
+		elif self.process.stage == "badblocks":
+			self.error_dialog("This USB drive is malfunctioning","At least one sector from your USB drive is damaged.  Thus, Portable Linux cannot be installed in it.  Insert another USB drive and try again.",ternary)
+		else:
+			self.error_dialog("An unexpected error took place","An unrecoverable error has stopped the creation of your Portable Linux drive.  Please report the details of this error to the Portable Linux developers, so we can fix it right away.",ternary)
+		self.get("progress_primary").set_markup("<b><big><big>Portable Linux could not be installed</big></big></b>")
+		self.get("progress_secondary").set_markup("<big>An error prevented the process from being completed.  You can close this dialog and disconnect your USB drive now, but you may need to repartition and reformat your USB drive.</big>")
+		self.get("cancel_install").hide()
+		self.get("dismiss_progress").show()
+
+	def setup_progress_response_cb(self,*args):
+		self.process.abort()
+		self.get("setup_progress").hide()
+		self.get("setup_options").set_sensitive(True)
+		return True
+
+	# info dialogs
+
+	def info_dialog(self,p,s,t = None): self.dialog(p,s,t)
+	def warning_dialog(self,p,s,t = None): self.dialog(p,s,t,type=gtk.MESSAGE_WARNING)
+	def error_dialog(self,p,s,t = None): self.dialog(p,s,t,type=gtk.MESSAGE_ERROR)
+	def dialog(self,primary,secondary,ternary = None,type=None):
+		kwargs = {
+			"buttons":gtk.BUTTONS_CLOSE,
+			"flags":gtk.DIALOG_MODAL
+		}
+		if type: kwargs["type"]=type
+		dialog = gtk.MessageDialog(**kwargs)
+		if self.get("setup_progress").get_property("visible"):
+			dialog.set_transient_for(self.get("setup_progress"))
+		else:
+			dialog.set_transient_for(self.get("setup_options"))
+		dialog.set_markup("<b><big><big>%s</big></big></b>"%primary)
+		dialog.format_secondary_markup("<big>%s</big>"%secondary)
+		if ternary:
+			dialog.format_secondary_markup(
+				"<big>%s</big>\n\n%s"%(secondary,ternary))
+		
+		def destroy(*args): dialog.destroy()
+		dialog.connect("response",destroy)
+		dialog.show()
+
+	def need_root_privs_dialog(self):
+		self.info_dialog("You need to run Portable Linux as root","Portable Linux requires root privileges to perform several operations on your disks and ISO images.  Please restart Portable Linux as root.")
+
+
+def main():
+	app = PortableLinux()
+	gtk.gdk.threads_init()
+	gtk.main()
+
+if __name__ == "__main__":
+	main()
+
