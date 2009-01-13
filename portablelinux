@@ -36,6 +36,7 @@ def get_shared_path():
 
 # hardware stuff
 class UnsupportedISO(Exception): pass
+class ISOTooLarge(Exception): pass
 
 last_check_call_pid = None
 def collect_check_call(*args,**kwargs):
@@ -48,11 +49,13 @@ def collect_check_call(*args,**kwargs):
 	p = subprocess.Popen(*args,**kwargs)
 	last_check_call_pid = p.pid
 	ret = p.wait()
+	io.seek(0)
+	output = io.read()
 	if ret != 0:
 		e = subprocess.CalledProcessError(ret,args[0])
-		io.seek(0)
-		e.output = io.read().strip()
+		e.output = output
 		raise e
+	return output
 
 def sigterm_check_call():
 	global last_check_call_pid
@@ -126,9 +129,23 @@ class MakePortableLinux(Thread):
 		for mntpnt in mounted: umount(mntpnt)
 		sync()
 
-	def partition(self): # requires parted
-		"parted /dev/sdc [command]"
-		
+	def partition(self):
+		out,err = subprocess.Popen(["sfdisk","-l",self.device],
+				stdout=subprocess.PIPE).communicate()
+		text = out.splitlines()
+		cylcount = int(text[1].split()[2])
+		cylsize = int(text[2].split()[4])
+		isosize = 700*1024*1024
+		isocyls = isosize / cylsize + 1
+		rest = cylcount - isocyls
+		assert rest > 0
+		text = """0,%s,c,*
+,,83
+
+"""%rest
+		subprocess.Popen(["sfdisk",self.device],
+				stdin=subprocess.PIPE).communicate(text)
+	
 	def badblocks(self):
 		if self.verify: badblocks(self.device+"2")
 	
@@ -196,6 +213,7 @@ initrd          /boot/initrd.gz
 
 
 def validate_iso(iso):
+	if os.stat(iso)[6] > 700*1024*1024: raise ISOTooLarge
 	mntpnt = tempfile.mkdtemp()
 	try:
 		mountloop(iso,mntpnt,fstype="iso9660")
@@ -203,7 +221,8 @@ def validate_iso(iso):
 	finally:
 		try: umount(mntpnt)
 		except Exception: pass
-		os.rmdir(mntpnt)
+		try: os.rmdir(mntpnt)
+		except Exception: pass
 
 
 class PortableLinux(gtk.glade.XML):
@@ -249,6 +268,8 @@ class PortableLinux(gtk.glade.XML):
 				self.valid_iso = True
 			except UnsupportedISO:
 				self.warning_dialog("The image you chose is not a supported ISO image","The image you selected is a CD image, but is not supported.  Only Casper-based Live bootable Linux images like Ubuntu and Knoppix are supported.")
+			except ISOTooLarge:
+				self.warning_dialog("The image you chose is too large","The image you selected is more than 700 MB in size.  Please select a proper ISO image.")
 			except CalledProcessError,e:
 				if e.returncode & 1: self.need_root_privs_dialog()
 				if e.returncode & 32: self.warning_dialog("The file you chose is not an ISO image","The operating system has refused to mount that file because it is not an ISO image.  Verify that you have chosen a file that is a valid ISO image.","Details from the operating system:\n\n%s"%e.output)

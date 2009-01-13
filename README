@@ -22,7 +22,7 @@ Portable Linux requires the following to run:
 - Python
 - The GTK+ bindings for Python
 - The libglade bindings for Python
-- GNU parted
+- sfdisk from the util-linux-ng package
 - Administrative privileges (root access) on the machine you're running it
 
 Additionally, you must have at least one compatible (Casper-based) ISO image.
