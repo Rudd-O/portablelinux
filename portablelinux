@@ -236,12 +236,6 @@ class PortableLinux(gtk.glade.XML):
 		self.get("setup_options").show()
 		self.get("persistent_size").set_text("256")
 
-		self.get("isoimage").set_filename("/home/rudd-o/download/kubuntu-8.10-desktop-i386.iso")
-		self.get("device").set_active(0)
-		self.valid_iso = True
-
-		self.update_readiness()
-
 	def on_iso_selected(self,*args):
 
 		filename = self.get("isoimage").get_filename()
@@ -372,6 +366,14 @@ class PortableLinux(gtk.glade.XML):
 
 	def need_root_privs_dialog(self):
 		self.info_dialog("You need to run Portable Linux as root","Portable Linux requires root privileges to perform several operations on your disks and ISO images.  Please restart Portable Linux as root.")
+
+	def show_about(self,*args):
+		def nothing(*args): 
+			self.get("about").hide()
+			return True
+		self.get("about").connect("delete-event",nothing)
+		self.get("about").connect("response",nothing)
+		self.get("about").show()
 
 
 def main():
