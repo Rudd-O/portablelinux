@@ -1,11 +1,32 @@
 = Portable Linux - the bootable Linux creator =
 
-Portable Linux is a tool that lets you create bootable USB and removable drives using popular Live CDs based on Casper.  Supported distributions at the moment include all the Ubuntu variants.
+Portable Linux is a tool that lets you create bootable USB and removable drives using popular Live CDs based on Casper.  Portable Linux sports some unique features:
+
+   1. The live setups created by this program let you use the remaining disk space on your USB drive to store and transport files between computers, as usual.
+   2. What's more, if your distribution supports persistence, the files and settings you edit on your live Linux distribution are persisted across reboots.
+   3. Finally, you can access the area used to store your files just fine from within your Linux distribution.
+
+So you can create your live Linux distro, install a couple of codecs and applications on it, and you've got a complete multimedia center on your pocket!
+
+Supported distributions at the moment include all the Ubuntu variants.
 
 It is free software distributed under the GPL version 3, and it uses the powerful Parted partitioning software.
 
 You can find the latest news and versions of this software at:
   http://rudd-o.com/new-projects/portablelinux
+
+== Requirements ==
+
+Portable Linux requires the following to run:
+
+- Python
+- The GTK+ bindings for Python
+- The libglade bindings for Python
+- GNU parted
+- Administrative privileges (root access) on the machine you're running it
+
+Additionally, you must have at least one compatible (Casper-based) ISO image.
+All the *buntu live CDs are compatible.
 
 == Help! ==
 
