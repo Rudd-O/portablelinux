@@ -158,7 +158,10 @@ class MakePortableLinux(Thread):
 	
 	def mkbootmenu(self):
 		seeds = glob.glob(os.path.join(self.isopart,"preseed","*.seed"))
-		if seeds: seed = "file=/preseed/%s "%os.path.basename(seeds[0])
+		seeds = [ (os.stat(x)[6],x) for x in seeds ]
+		seeds.sort()
+		# pick the last seed which is the largest because of the sort
+		if seeds: seed = "file=/preseed/%s "%os.path.basename(seeds[-1][1])
 		else: seed = ""
 		bootmenu = \
 """
