@@ -190,9 +190,11 @@ root            (hd0,0)
 kernel          /boot/vmlinuz boot=casper %s persistent
 initrd          /boot/initrd.gz
 """%seed
-		f = file(os.path.join(self.dospart,"boot","grub","grub.conf"),"w")
-		f.write(bootmenu)
-		f.close()
+		fns = ["grub.conf","menu.lst"]
+		for fn in fns:
+			f = file(os.path.join(self.dospart,"boot","grub",fn),"w")
+			f.write(bootmenu)
+			f.close()
 
 	def finalize(self):
 		umount(self.dospart)
