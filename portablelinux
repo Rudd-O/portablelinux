@@ -57,10 +57,30 @@ def collect_check_call(*args,**kwargs):
 		raise e
 	return output
 
+def try_to_sudo():
+	# this snippet was inspired from usb-creator
+	try: collect_check_call(["which","gksu"])
+	except subprocess.CalledProcessError: return #fail silently if no gksu
+	# oh, there IS gksu!
+	if os.getuid() != 0:
+		args = ['gksu', 'gksu', '--desktop',
+		os.path.join(get_shared_path(),'portablelinux.desktop'), '--']
+		args.extend(sys.argv)
+		os.execvp(args[0], args)
+
 def sigterm_check_call():
 	global last_check_call_pid
 	try: os.kill(last_check_call_pid,15)
 	except Exception: pass
+
+def get_devices():
+	for a in glob.glob("/sys/block/sd*"):
+		removable = file(a+"/removable").read().startswith("1")
+		mb_blocks = int(file(a+"/size").read()) / 2 / 1024
+		name = " ".join([ file(a+b).read().strip() for b in ["/device/vendor","/device/model"] ])
+		if removable and mb_blocks >= 1000:
+			a = a.replace("/sys/block","/dev")
+			yield (a,name,mb_blocks)
 
 
 def mountloop(file,mntpnt,fstype=None):
@@ -244,24 +264,39 @@ class PortableLinux(gtk.glade.XML):
 		self.valid_iso = False
 		self.valid_device = False
 
-		model = gtk.ListStore(str,int)
+		def redo_model():
+			model = gtk.ListStore(str,str,int,str)
+			device_list = self.get("device")
+			device_list.set_model(model)
+			return model
+
 		device_list = self.get("device")
-		device_list.set_model(model)
+		redo_model()
+		cell = gtk.CellRendererText()
+		device_list.pack_start(cell, True)
+		device_list.add_attribute(cell, 'text', 1)
+		cell = gtk.CellRendererText()
+		device_list.pack_start(cell, True)
+		device_list.add_attribute(cell, 'text', 3)
 
-		def get_devices():
-			for a in glob.glob("/sys/block/sd*"):
-				removable = file(a+"/removable").read().startswith("1")
-				mb_blocks = int(file(a+"/size").read()) / 2 / 1024
-				if removable and mb_blocks >= 1000:
-					yield (a,mb_blocks)
+		self._ck = ""
 
-		for m,mb in get_devices():
-			m = m.replace("/sys/block","/dev")
-			model.append((m,mb))
-		if len(model) == 0:
-			model.append(("(no removable device large enough connected)",-1))
+		def loop(*args):
+			ck = ""
+			lt = []
+			for d in get_devices():
+				lt.append(d)
+				ck = ck + str(d)
+			if ck != self._ck:
+				model = redo_model()
+				for m,n,mb in lt: model.append((m,n,mb,str(mb) + " MiB"))
+				self._ck = ck
+				self.update_readiness()
+			return True
 
-		self.update_readiness()
+		gobject.timeout_add(1000,loop)
+		loop()
+
 		self.get("setup_options").show()
 		self.get("persistent_size").set_text("256")
 
@@ -289,7 +324,7 @@ class PortableLinux(gtk.glade.XML):
 		# FIXME verify the USB stick has enough disk space
 
 		num = self.get("device").get_active()
-		device,size = self.get("device").get_model()[num]
+		device,name,size,throwaway = self.get("device").get_model()[num]
 		if size != -1:
 			self.get("persistent_size").set_range(32,size-700-16)
 			self.valid_device = True
@@ -414,8 +449,9 @@ class PortableLinux(gtk.glade.XML):
 
 
 def main():
-	app = PortableLinux()
+	try_to_sudo()
 	gtk.gdk.threads_init()
+	app = PortableLinux()
 	gtk.main()
 
 if __name__ == "__main__":
