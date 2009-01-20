@@ -5,7 +5,7 @@ from distutils.core import setup
 
 setup(
 	name = 'portablelinux',
-	version = '0.9.1',
+	version = '0.9.2',
 	description = 'A bootable USB Live Linux creator',
 	long_description = """Portable Linux is a tool that lets you create bootable USB and removable drives using popular Live CDs based on Casper.""",
 	author = 'Manuel Amador (Rudd-O)',
