@@ -1,9 +1,10 @@
-README
-portablelinux
-portablelinux.glade
-portablelinux.png
-portablelinux.desktop
-setup.cfg
-setup.py
-COPYING
-TODO
+include README
+include portablelinux
+include portablelinux.glade
+include portablelinux.png
+include portablelinux.desktop
+include setup.cfg
+include setup.py
+include COPYING
+include TODO
+include MANIFEST.in
