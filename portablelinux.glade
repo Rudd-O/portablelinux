@@ -35,7 +35,7 @@
           <widget class="GtkLabel" id="progress_secondary">
             <property name="visible">True</property>
             <property name="xalign">0</property>
-            <property name="label" translatable="yes">&lt;big&gt;&lt;i&gt;Do not, under any circumstances, yank out your USB drive while this process is running.&lt;/i&gt;&lt;/big&gt;</property>
+            <property name="label" translatable="yes">&lt;big&gt;&lt;i&gt;Do not, under any circumstances, yank out your portable drive while this process is running.&lt;/i&gt;&lt;/big&gt;</property>
             <property name="use_markup">True</property>
             <property name="wrap">True</property>
           </widget>
@@ -172,7 +172,7 @@
                   <widget class="GtkLabel" id="label8">
                     <property name="visible">True</property>
                     <property name="xalign">0</property>
-                    <property name="label" translatable="yes">Creating the Windows volume on the USB drive</property>
+                    <property name="label" translatable="yes">Creating the Windows volume on the portable drive</property>
                   </widget>
                   <packing>
                     <property name="left_attach">1</property>
@@ -185,7 +185,7 @@
                   <widget class="GtkLabel" id="label_badblocks">
                     <property name="visible">True</property>
                     <property name="xalign">0</property>
-                    <property name="label" translatable="yes">Verifying that the USB drive is in good order</property>
+                    <property name="label" translatable="yes">Verifying that the portable drive is in good order</property>
                   </widget>
                   <packing>
                     <property name="left_attach">1</property>
@@ -198,7 +198,7 @@
                   <widget class="GtkLabel" id="label6">
                     <property name="visible">True</property>
                     <property name="xalign">0</property>
-                    <property name="label" translatable="yes">Repartitioning the USB drive</property>
+                    <property name="label" translatable="yes">Repartitioning the portable drive</property>
                   </widget>
                   <packing>
                     <property name="left_attach">1</property>
@@ -297,7 +297,7 @@
                   <widget class="GtkLabel" id="label5">
                     <property name="visible">True</property>
                     <property name="xalign">0</property>
-                    <property name="label" translatable="yes">Unmounting partitions on the USB drive</property>
+                    <property name="label" translatable="yes">Unmounting partitions on the portable drive</property>
                   </widget>
                   <packing>
                     <property name="left_attach">1</property>
@@ -423,7 +423,7 @@
                               <widget class="GtkLabel" id="label3">
                                 <property name="visible">True</property>
                                 <property name="xalign">0</property>
-                                <property name="label" translatable="yes">Select an ISO image to install into your USB drive.
+                                <property name="label" translatable="yes">Select an ISO image to install into your portable drive.
 Make sure you have verified the image beforehand.</property>
                                 <property name="wrap">True</property>
                               </widget>
@@ -499,7 +499,7 @@ Make sure you have verified the image beforehand.</property>
                                 <property name="visible">True</property>
                                 <property name="xalign">0</property>
                                 <property name="label" translatable="yes">Indicate the removable drive on which you want Linux installed.
-If you have not plugged your USB drive yet, do it now.
+If you have not plugged your portable drive yet, do it now.
 
 &lt;i&gt;Remember to back up all files on your removable drive.  The formatting process will destroy everything on it.&lt;/i&gt;</property>
                                 <property name="use_markup">True</property>
@@ -520,7 +520,7 @@ If you have not plugged your USB drive yet, do it now.
                               <widget class="GtkCheckButton" id="verify">
                                 <property name="visible">True</property>
                                 <property name="can_focus">True</property>
-                                <property name="label" translatable="yes">Verify that the USB drive is in good condition</property>
+                                <property name="label" translatable="yes">Verify that the portable drive is in good condition</property>
                                 <property name="response_id">0</property>
                                 <property name="active">True</property>
                                 <property name="draw_indicator">True</property>
@@ -586,7 +586,7 @@ If you have not plugged your USB drive yet, do it now.
                 <child>
                   <widget class="GtkLabel" id="label2">
                     <property name="visible">True</property>
-                    <property name="label" translatable="yes">&lt;b&gt;&lt;big&gt;Destination USB drive&lt;/big&gt;&lt;/b&gt;</property>
+                    <property name="label" translatable="yes">&lt;b&gt;&lt;big&gt;Destination portable drive&lt;/big&gt;&lt;/b&gt;</property>
                     <property name="use_markup">True</property>
                   </widget>
                   <packing>

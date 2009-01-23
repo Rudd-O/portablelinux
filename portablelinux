@@ -33,6 +33,7 @@ from threading import Thread
 import StringIO
 import time
 import signal
+import traceback
 
 def get_shared_path():
 	testfile = 'portablelinux.glade'
@@ -68,7 +69,7 @@ def collect_check_call(*args,**kwargs):
 	io.seek(0)
 	output = io.read()
 	if ret != 0:
-		e = subprocess.CalledProcessError(ret,args[0])
+		e = CalledProcessError(ret,args[0])
 		e.output = output
 		raise e
 	return output
@@ -76,7 +77,7 @@ def collect_check_call(*args,**kwargs):
 def try_to_sudo():
 	# this snippet was inspired from usb-creator
 	try: collect_check_call(["which","gksu"])
-	except subprocess.CalledProcessError: return #fail silently if no gksu
+	except CalledProcessError: return #fail silently if no gksu
 	# oh, there IS gksu!
 	if os.getuid() != 0:
 		args = ['gksu', 'gksu', '--desktop',
@@ -393,11 +394,11 @@ class PortableLinux(gtk.glade.XML):
 		if arg == "done":
 			hidearrows()
 			self.get("progress_primary").set_markup("<b><big><big>Portable Linux has been installed</big></big></b>")
-			self.get("progress_secondary").set_markup("<big>It's safe to remove your USB drive now.  Test it by plugging it into a computer, rebooting it, and selecting USB boot from the BIOS setup or BIOS boot menu.</big>")
+			self.get("progress_secondary").set_markup("<big>It's safe to remove your portable drive now.  Test it by plugging it into a computer, rebooting it, and selecting USB boot from the BIOS setup or BIOS boot menu.</big>")
 			self.get("cancel_install").hide()
 			self.get("dismiss_progress").show()
 			self.setup_progress_response_cb()
-			self.info_dialog("Portable Linux installation is complete","The installation process completed successfully; it is now safe to remove your USB drive from your computer.  Your USB drive should now be bootable in any computer.")
+			self.info_dialog("Portable Linux installation is complete","The installation process completed successfully; it is now safe to remove your portable drive from your computer.  Your portable drive should now be bootable in any computer.")
 			return
 		
 		if type(arg) is str:
@@ -406,19 +407,27 @@ class PortableLinux(gtk.glade.XML):
 			self.get("arrow_%s"%arg).show()
 			return
 
-		e = arg
-		if hasattr(e,"output") and e.output: ternary = "Details from the operating system:\n\n%s"%e.output
-		else: ternary = str(e)
-		if self.process.stage == "umountfs":
-			self.error_dialog("Cannot access your USB drive exclusively","One of the partitions in the USB drive cannot be unmounted.  Close any applications that have files open on your USB drive, then try again.",ternary)
-		elif self.process.stage == "badblocks":
-			self.error_dialog("This USB drive is malfunctioning","At least one sector from your USB drive is damaged.  Thus, Portable Linux cannot be installed in it.  Insert another USB drive and try again.",ternary)
-		else:
-			self.error_dialog("An unexpected error took place","An unrecoverable error has stopped the creation of your Portable Linux drive.  Please report the details of this error to the Portable Linux developers, so we can fix it right away.",ternary)
-		self.get("progress_primary").set_markup("<b><big><big>Portable Linux could not be installed</big></big></b>")
-		self.get("progress_secondary").set_markup("<big>An error prevented the process from being completed.  You can close this dialog and disconnect your USB drive now, but you may need to repartition and reformat your USB drive.</big>")
-		self.get("cancel_install").hide()
-		self.get("dismiss_progress").show()
+		try:
+			raise arg
+		except Exception,e:
+
+			self.get("progress_primary").set_markup("<b><big><big>Portable Linux could not be installed</big></big></b>")
+			self.get("progress_secondary").set_markup("<big>An error prevented the process from being completed.  You can close this dialog and disconnect your portable drive now, but you may need to repartition and reformat your portable drive.</big>")
+			self.get("cancel_install").hide()
+			self.get("dismiss_progress").show()
+
+			if hasattr(e,"output") and e.output: cmdoutput = "Details from the operating system:\n%s"%e.output
+			else: cmdoutput = None
+			tback = traceback.format_exc()
+			ternary = "\n\n".join( [ a for a in [cmdoutput,tback] if a ] )
+			if self.process.stage == "umountfs":
+				self.error_dialog("Cannot access your portable drive exclusively","One of the partitions in the portable drive cannot be unmounted.  Close any applications that have files open on your portable drive, then try again.",ternary)
+			elif self.process.stage == "badblocks":
+				self.error_dialog("This portable drive is malfunctioning","At least one sector from your portable drive is damaged.  Thus, Portable Linux cannot be installed in it.  Insert another portable drive and try again.",ternary)
+			elif self.process.stage == "mkfs" and isinstance(e,OSError) and e.errno is 2:
+				self.error_dialog("A required program is missing","Your computer does not have the dosfstools package installed.  Use your distribution's package management tools to install it, then try again.",ternary)
+			else:
+				self.error_dialog("An unexpected error took place","An unrecoverable error has stopped the creation of your Portable Linux drive.  Please report the details of this error to the Portable Linux developers, so we can fix it right away.",ternary)
 
 	def setup_progress_response_cb(self,*args):
 		self.process.abort()
