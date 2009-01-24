@@ -161,7 +161,6 @@ class MakePortableLinux(Thread):
 		self.reporter("done")
 
 	def umountfs(self):
-		mounted = []
 		mounted = [ a.split()[0] for a in file("/etc/mtab").readlines() if a.startswith(self.device) ]
 		for mntpnt in mounted: umount(mntpnt)
 		sync()
@@ -343,7 +342,8 @@ class PortableLinux(gtk.glade.XML):
 		num = self.get("device").get_active()
 		device,name,size,throwaway = self.get("device").get_model()[num]
 		if size != -1:
-			self.get("persistent_size").set_range(32,size-700-16)
+			maxsize = min( [ size-700-16 , 4095 ] )
+			self.get("persistent_size").set_range(32,maxsize)
 			self.valid_device = True
 		else:
 			self.valid_device = False
