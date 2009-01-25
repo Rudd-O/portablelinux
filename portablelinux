@@ -147,7 +147,7 @@ class MakePortableLinux(Thread):
 		sigterm_check_call()
 
 	def run(self):
-		for stage in "umountfs partition badblocks mkfs mountfs installgrub copykernel mkpersistent writeiso mkbootmenu finalize".split():
+		for stage in "umountfs partition umountfs2 badblocks mkfs mountfs installgrub copykernel mkpersistent writeiso mkbootmenu finalize".split():
 			if self.cancel is True: return
 			self.stage = stage
 			self.reporter(stage)
@@ -181,7 +181,11 @@ class MakePortableLinux(Thread):
 """%rest
 		subprocess.Popen(["sfdisk",self.device],
 				stdin=subprocess.PIPE).communicate(text)
+		time.sleep(10)
 	
+	def umountfs2(self):
+		self.umountfs()
+
 	def badblocks(self):
 		if self.verify: badblocks(self.device+"2")
 	
@@ -424,6 +428,8 @@ class PortableLinux(gtk.glade.XML):
 				self.error_dialog("Cannot access your portable drive exclusively","One of the partitions in the portable drive cannot be unmounted.  Close any applications that have files open on your portable drive, then try again.",ternary)
 			elif self.process.stage == "badblocks":
 				self.error_dialog("This portable drive is malfunctioning","At least one sector from your portable drive is damaged.  Thus, Portable Linux cannot be installed in it.  Insert another portable drive and try again.",ternary)
+			elif self.process.stage == "umountfs2":
+				self.error_dialog("Cannot access your portable drive exclusively","For some reason, your operating system seems to have mounted one of the newly created partitions automatically, and holds files open there.  Please report your operating system's version to the developers.",ternary)
 			elif self.process.stage == "mkfs" and isinstance(e,OSError) and e.errno is 2:
 				self.error_dialog("A required program is missing","Your computer does not have the dosfstools package installed.  Use your distribution's package management tools to install it, then try again.",ternary)
 			else:
