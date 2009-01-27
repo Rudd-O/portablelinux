@@ -109,7 +109,7 @@ def mount(file,mntpnt,fstype=None):
 	if fstype: cmd.extend(["-t",fstype])
 	collect_check_call(cmd)
 def umount(device): collect_check_call(["umount",device])
-def badblocks(device): collect_check_call(["badblocks","-e","1",device])
+def badblocks(device): collect_check_call(["badblocks",device])
 def sync(): collect_check_call(["sync"])
 def mkdosfs(device,verify=True):
 	cmd = ["mkfs.vfat","-F","32"]
