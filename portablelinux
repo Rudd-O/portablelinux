@@ -124,6 +124,10 @@ def dd(infk,of,bs=None,count=None):
 	if bs: cmd.append("bs=%s"%bs)
 	if count: cmd.append("count=%s"%count)
 	collect_check_call(cmd)
+def savefile(fn,text):
+	f = file(fn,"w")
+	f.write(text)
+	f.close()
 
 class MakePortableLinux(Thread):
 
@@ -167,6 +171,7 @@ class MakePortableLinux(Thread):
 		sync()
 
 	def partition(self):
+		dd("/dev/zero",self.device,"64K","1")
 		out,err = subprocess.Popen(["sfdisk","-l",self.device],
 				stdout=subprocess.PIPE).communicate()
 		text = out.splitlines()
@@ -242,10 +247,7 @@ kernel          /boot/vmlinuz boot=casper %s persistent
 initrd          /boot/initrd.gz
 """%seed
 		fns = ["grub.conf","menu.lst"]
-		for fn in fns:
-			f = file(os.path.join(self.dospart,"boot","grub",fn),"w")
-			f.write(bootmenu)
-			f.close()
+		for fn in fns: savefile(fn,bootmenu)
 
 	def finalize(self):
 		umount(self.dospart)
