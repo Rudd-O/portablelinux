@@ -59,6 +59,8 @@ last_check_call_pid = None
 def collect_check_call(*args,**kwargs):
 	global last_check_call_pid
 
+	print "Running command: %s"%args[0]
+
 	io = tempfile.TemporaryFile()
 	kwargs["stdin"] = None
 	kwargs["stdout"] = io
@@ -117,7 +119,18 @@ def mkdosfs(device,verify=True):
 	cmd.extend(["-n","PORTABLELNX",device])
 	collect_check_call(cmd)
 def installgrub(device,mountpoint):
+	print "Installing grub"
+	devicemap = \
+"""
+(hd0)     %s
+"""
+	dirs = ( os.path.join(mountpoint,"boot"), os.path.join(mountpoint,"boot","grub") )
+	for d in dirs:
+		if not os.path.isdir(d): os.mkdir(d)
+	fn = os.path.join(mountpoint,"boot","grub","device.map")
+	savefile(fn,devicemap%device)
 	collect_check_call(["grub-install","--no-floppy","--root-directory=%s"%mountpoint,device])
+	savefile(fn,devicemap%"/dev/sda")
 def mke3fs(device): collect_check_call(["mkfs.ext3","-F",device])
 def dd(infk,of,bs=None,count=None):
 	cmd = ["dd","if=%s"%infk,"of=%s"%of]
@@ -131,7 +144,7 @@ def savefile(fn,text):
 
 class MakePortableLinux(Thread):
 
-	def __init__(self,reporter,isoimage,device,verify,persistent_size):
+	def __init__(self,reporter,isoimage,device,verify,persistent_size,repair):
 		"""reporter is a function that takes one argument, either:
 			the name of a stage, or
 			an exception
@@ -146,13 +159,16 @@ class MakePortableLinux(Thread):
 		self.cancel = False
 		self.error = False
 		self.stage = None
+		self.justrepair = repair
 
 	def abort(self):
 		self.cancel = True
 		sigterm_check_call()
 
 	def run(self):
-		for stage in "umountfs partition umountfs2 badblocks mkfs mountfs installgrub copykernel mkpersistent writeiso mkbootmenu finalize".split():
+		if self.justrepair: stages = "umountfs mountfs installgrub finalize"
+		else: "umountfs partition umountfs2 badblocks mkfs mountfs installgrub copykernel mkpersistent writeiso mkbootmenu finalize"
+		for stage in stages.split():
 			if self.cancel is True: return
 			self.stage = stage
 			self.reporter(stage)
@@ -203,17 +219,7 @@ class MakePortableLinux(Thread):
 		mount(self.device+"1",self.dospart,fstype="vfat")
 
 	def installgrub(self):
-		devicemap = \
-"""
-(hd0)     %s
-"""
-		dirs = ( os.path.join(self.dospart,"boot"), os.path.join(self.dospart,"boot","grub") )
-		for d in dirs:
-			if not os.path.isdir(d): os.mkdir(d)
-		fn = os.path.join(self.dospart,"boot","grub","device.map")
-		savefile(fn,devicemap%self.device)
 		installgrub(self.device,self.dospart)
-		savefile(fn,devicemap%"/dev/sda")
 	
 	def copykernel(self):
 		self.isopart = tempfile.mkdtemp()
@@ -251,9 +257,9 @@ initrd          /boot/initrd.gz
 
 	def finalize(self):
 		umount(self.dospart)
-		umount(self.isopart)
+		if hasattr(self,"isopart"): umount(self.isopart)
 		os.rmdir(self.dospart)
-		os.rmdir(self.isopart)
+		if hasattr(self,"isopart"): os.rmdir(self.isopart)
 		sync()
 
 	def cleanup(self):
@@ -287,6 +293,10 @@ class PortableLinux(gtk.glade.XML):
 	def __init__ (self):
 		gtk.glade.XML.__init__(self,os.path.join(get_shared_path(),'portablelinux.glade'))
 		self.signal_autoconnect(self)
+		self.get("setup_options").connect("close",gtk.main_quit)
+		self.get("setup_options").connect("destroy",gtk.main_quit)
+		self.get("setup_progress").connect("response",self.setup_progress_response_cb)
+		self.get("setup_progress").connect("delete_event",self.setup_progress_response_cb)
 		self.run_setup()
 
 	def gtk_main_quit(*args):
@@ -360,18 +370,33 @@ class PortableLinux(gtk.glade.XML):
 		device,name,size,throwaway = self.get("device").get_model()[num]
 		if size != -1:
 			maxsize = min( [ size-700-16 , 4095 ] )
-			self.get("persistent_size").set_range(32,maxsize)
+			adj = gtk.Adjustment(lower=32,upper=maxsize,step_incr=1,page_incr=16,page_size=16)
+			self.get("persistent_size").set_adjustment(adj)
 			self.valid_device = True
 		else:
 			self.valid_device = False
 
+		
+
+		self.update_readiness()
+
+	def justrepairgrub_toggled_cb(self,widget=None):
+		def set_visible(o,d):
+			if d: o.show()
+			else: o.hide()
+		set_visible(self.get("destroydata"),not widget.get_active())
+		set_visible(self.get("onlygrubwillbeinstalled"),widget.get_active())
+		self.get("isoimage").set_sensitive(not widget.get_active())
+		self.get("tablereserve").set_sensitive(not widget.get_active())
+		self.get("verify").set_sensitive(not widget.get_active())
 		self.update_readiness()
 
 	def update_readiness(self):
-		self.get("ok").set_sensitive(self.valid_iso and self.valid_device)
+		self.get("ok").set_sensitive( ( self.valid_iso or self.get("destroydata") ) and self.valid_device )
 
 	def install_portable_linux(self,*args):
 		num = self.get("device").get_active()
+		repair = self.get("justrepairgrub").get_active()
 		device = self.get("device").get_model()[num][0]
 		filename = self.get("isoimage").get_filename()
 		verify = self.get("verify").get_active()
@@ -388,7 +413,7 @@ class PortableLinux(gtk.glade.XML):
 		def idle_reporter(arg):
 			gobject.idle_add(self.handle_progress_report,arg)
 
-		self.process = MakePortableLinux(idle_reporter,filename,device,verify,persistent_size)
+		self.process = MakePortableLinux(idle_reporter,filename,device,verify,persistent_size,repair)
 		self.process.start()
 
 		def show_activity(*args):
