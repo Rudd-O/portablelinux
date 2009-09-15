@@ -253,7 +253,7 @@ kernel          /boot/vmlinuz boot=casper %s persistent
 initrd          /boot/initrd.gz
 """%seed
 		fns = ["grub.conf","menu.lst"]
-		for fn in fns: savefile(fn,bootmenu)
+		for fn in fns: savefile(os.path.join(mountpoint,"boot","grub",fn),bootmenu)
 
 	def finalize(self):
 		umount(self.dospart)
