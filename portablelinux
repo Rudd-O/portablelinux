@@ -116,7 +116,8 @@ def mkdosfs(device,verify=True):
 	if verify: cmd.extend(["-c"])
 	cmd.extend(["-n","PORTABLELNX",device])
 	collect_check_call(cmd)
-def installgrub(device,mountpoint): collect_check_call(["grub-install","--no-floppy","--root-directory=%s"%mountpoint,device])
+def installgrub(device,mountpoint):
+	collect_check_call(["grub-install","--no-floppy","--root-directory=%s"%mountpoint,device])
 def mke3fs(device): collect_check_call(["mkfs.ext3","-F",device])
 def dd(infk,of,bs=None,count=None):
 	cmd = ["dd","if=%s"%infk,"of=%s"%of]
@@ -197,7 +198,17 @@ class MakePortableLinux(Thread):
 		mount(self.device+"1",self.dospart,fstype="vfat")
 
 	def installgrub(self):
+		devicemap = \
+"""
+(hd0)     %s
+"""
+		dirs = ( os.path.join(self.dospart,"boot"), os.path.join(self.dospart,"boot","grub") )
+		for d in dirs:
+			if not os.path.isdir(d): os.mkdir(d)
+		fn = os.path.join(self.dospart,"boot","grub","device.map")
+		savefile(fn,devicemap%self.device)
 		installgrub(self.device,self.dospart)
+		savefile(fn,devicemap%"/dev/sda")
 	
 	def copykernel(self):
 		self.isopart = tempfile.mkdtemp()
