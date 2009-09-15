@@ -1,5 +1,4 @@
 [Desktop Entry]
-Encoding=UTF-8
 Name=Portable Linux
 Comment=Install a bootable live Linux on your portable drive
 Exec=portablelinux
@@ -7,5 +6,5 @@ Icon=portablelinux
 Terminal=false
 StartupNotify=true
 Type=Application
-Categories=System
+Categories=System;
 X-Desktop-File-Install-Version=0.15
