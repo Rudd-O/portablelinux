@@ -1,4 +1,10 @@
-= Portable Linux - the bootable Linux creator =
+Portable Linux - the bootable Linux creator
+===========================================
+
+| Donate to support this free software |
+|:------------------------------------:|
+| <img width="164" height="164" title="" alt="" src="bitcoin.png" /> |
+| [1PATGWekxk3YCA9SRA5UxMWd8TstWT98C3](bitcoin:1PATGWekxk3YCA9SRA5UxMWd8TstWT98C3) |
 
 Portable Linux is a tool that lets you create bootable USB and
 removable drives using popular Live CDs based on Casper.  Portable
