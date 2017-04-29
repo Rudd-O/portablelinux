@@ -1,5 +1,4 @@
-Portable Linux - the bootable Linux creator
-===========================================
+# Portable Linux - the bootable Linux creator
 
 | Donate to support this free software |
 |:------------------------------------:|
@@ -33,7 +32,7 @@ the powerful Parted partitioning software.
 You can find the latest news and versions of this software at:
   http://rudd-o.com/new-projects/portablelinux
 
-== Requirements ==
+## Requirements
 
 Portable Linux requires the following to run:
 
@@ -47,7 +46,7 @@ Portable Linux requires the following to run:
 Additionally, you must have at least one compatible (Casper-based) ISO
 image.  All the *buntu live CDs are compatible.
 
-== Help! ==
+## Help!
 
 Sure, Portable Linux needs all the help you can muster!  Its Web site
 is completely open for contribution.
